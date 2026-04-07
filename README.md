@@ -75,7 +75,8 @@ Copy `.env.example` to `.env` and fill in tokens.
 
 Required for baseline inference:
 
-- `API_BASE_URL`
+- `MODEL_BASE_URL` (preferred, set this to your provided LiteLLM proxy URL)
+- `API_BASE_URL` (legacy fallback if `MODEL_BASE_URL` is not set)
 - `MODEL_NAME`
 - `HF_TOKEN` (or `OPENAI_API_KEY`)
 
@@ -134,7 +135,8 @@ Use a Docker Space.
 2. Select `Docker` as SDK.
 3. Push this repository to the Space.
 4. In Space Settings -> Variables and secrets, set:
-   - `API_BASE_URL`
+   - `MODEL_BASE_URL` (preferred)
+   - `API_BASE_URL` (legacy fallback)
    - `MODEL_NAME`
    - `HF_TOKEN`
    - (optional) `OPENAI_API_KEY` (same value as `HF_TOKEN`)

@@ -8,7 +8,9 @@ from openai import OpenAI
 
 load_dotenv()
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_BASE_URL = (os.getenv("MODEL_BASE_URL") or "").strip()
+API_BASE_URL = (os.getenv("API_BASE_URL") or "").strip()
+RESOLVED_MODEL_BASE_URL = MODEL_BASE_URL or API_BASE_URL
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -22,7 +24,13 @@ MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
 if API_KEY is None:
     raise ValueError("Either OPENAI_API_KEY or HF_TOKEN environment variable is required")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+if not RESOLVED_MODEL_BASE_URL:
+    raise ValueError(
+        "MODEL_BASE_URL or API_BASE_URL environment variable is required "
+        "(set it to the provided LiteLLM proxy URL)"
+    )
+
+client = OpenAI(base_url=RESOLVED_MODEL_BASE_URL, api_key=API_KEY)
 
 
 def parse_json_response(response: requests.Response, context: str):
