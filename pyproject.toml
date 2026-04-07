@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logistics-flow-openenv"
+version = "1.0.0"
+description = "OpenEnv-compatible logistics warehouse simulation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.104.0",
+  "uvicorn>=0.24.0",
+  "pydantic>=2.0.0",
+  "openenv-core>=0.2.3,<1.0.0",
+  "numpy",
+  "python-multipart",
+  "requests>=2.25.0",
+  "python-dotenv>=1.0.0",
+  "openai>=1.40.0",
+]
+
+[project.scripts]
+server = "server.app:main"
