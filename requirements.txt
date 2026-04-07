@@ -1,0 +1,16 @@
+# Web Server & API
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+
+# OpenEnv & RL Tools
+openenv-core>=0.2.3,<1.0.0
+numpy
+
+# Infrastructure
+python-multipart
+requests>=2.25.0
+python-dotenv>=1.0.0
+
+# (Optional) If you use AI-driven graders internally
+openai>=1.40.0

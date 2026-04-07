@@ -1,0 +1,13 @@
+name: logistics_flow
+version: 1.0.0
+description: "Intelligent Warehouse Management"
+tasks:
+  - id: easy_fulfillment
+    difficulty: easy
+    goal: "Fulfill all initial orders."
+  - id: medium_restock
+    difficulty: medium
+    goal: "Manage incoming demand with low initial stock."
+  - id: hard_peak_season
+    difficulty: hard
+    goal: "Prioritize high-priority orders under strict deadlines."

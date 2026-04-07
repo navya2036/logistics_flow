@@ -1,0 +1,83 @@
+{
+  "easy_fulfillment": {
+    "description": "Smoke test with high stock and 2 straightforward orders",
+    "max_days": 10,
+    "restock_lead_time": 0,
+    "inventory": {
+      "electronics": 10,
+      "appliances": 6
+    },
+    "orders": [
+      {
+        "id": "ORD001",
+        "item": "electronics",
+        "quantity": 2,
+        "due_day": 3,
+        "priority": 2,
+        "penalty": 2.0
+      },
+      {
+        "id": "ORD002",
+        "item": "appliances",
+        "quantity": 1,
+        "due_day": 2,
+        "priority": 3,
+        "penalty": 2.5
+      }
+    ]
+  },
+  "medium_restock": {
+    "description": "Low initial stock, large order, must account for 2-day restock lead time",
+    "max_days": 10,
+    "restock_lead_time": 2,
+    "inventory": {
+      "electronics": 2,
+      "appliances": 0
+    },
+    "orders": [
+      {
+        "id": "ORD101",
+        "item": "electronics",
+        "quantity": 5,
+        "due_day": 5,
+        "priority": 3,
+        "penalty": 4.0
+      }
+    ]
+  },
+  "hard_peak_season": {
+    "description": "Not enough stock for all due-today orders; prioritize high-value orders",
+    "max_days": 10,
+    "restock_lead_time": 2,
+    "inventory": {
+      "electronics": 6,
+      "appliances": 1
+    },
+    "orders": [
+      {
+        "id": "ORD201",
+        "item": "electronics",
+        "quantity": 4,
+        "due_day": 2,
+        "priority": 3,
+        "penalty": 6.0
+      },
+      {
+        "id": "ORD202",
+        "item": "electronics",
+        "quantity": 3,
+        "due_day": 2,
+        "priority": 1,
+        "penalty": 2.0
+      },
+      {
+        "id": "ORD203",
+        "item": "appliances",
+        "quantity": 1,
+        "due_day": 2,
+        "priority": 2,
+        "penalty": 3.0
+      }
+    ]
+  }
+}

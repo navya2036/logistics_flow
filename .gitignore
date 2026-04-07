@@ -1,0 +1,21 @@
+# --- SECRETS (CRITICAL) ---
+.env
+*.env
+secrets.py
+
+# --- PYTHON BAGGAGE ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# --- OS LOGS ---
+.DS_Store
+Thumbs.db
+*.log
+
+# --- PROJECT SPECIFIC ---
+.ipynb_checkpoints/
