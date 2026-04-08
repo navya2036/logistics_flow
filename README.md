@@ -84,8 +84,6 @@ Required for baseline inference:
 - `API_BASE_URL` (set this to your provided LiteLLM proxy URL)
 - `API_KEY` (the injected LiteLLM key)
 - `MODEL_NAME`
-- `MODEL_BASE_URL` (optional legacy fallback)
-- `HF_TOKEN` or `OPENAI_API_KEY` (optional legacy fallback)
 
 3. Start environment server:
 
@@ -145,9 +143,6 @@ Use a Docker Space.
    - `API_BASE_URL` (required)
    - `API_KEY` (required — injected LiteLLM key)
    - `MODEL_NAME`
-   - `MODEL_BASE_URL` (optional legacy fallback)
-   - `HF_TOKEN` (optional legacy fallback)
-   - `OPENAI_API_KEY` (optional legacy fallback)
    - `AGENT_MODE` (optional, default: `hybrid`)
 5. Ensure the Space metadata includes the `openenv` tag.
 6. After build is complete, verify:
