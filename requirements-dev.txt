@@ -1,0 +1,4 @@
+# Optional local validation and experimentation tools
+openenv-core>=0.2.3,<1.0.0
+numpy
+python-multipart

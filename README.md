@@ -69,6 +69,12 @@ Output includes per-task deterministic score in `[0.0, 1.0]` and average score.
 pip install -r requirements.txt
 ```
 
+Optional (local validation/tooling only):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 2. Configure environment variables:
 
 Copy `.env.example` to `.env` and fill in tokens.
@@ -162,12 +168,12 @@ Use a Docker Space.
 
 Deterministic rule-based agent scores (run `python grade_tasks.py`):
 
-| Task | Score | Total Reward | Steps | Remaining Orders |
-|---|---|---|---|---|
-| `easy_fulfillment` | **0.99** | 5.0 | 2 | 0 |
-| `medium_restock` | **0.99** | 2.9 | 4 | 0 |
-| `hard_peak_season` | **0.99** | 3.0 | 2 | 0 |
-| **Average** | **0.99** | — | — | — |
+| Task               | Score    | Total Reward | Steps | Remaining Orders |
+| ------------------ | -------- | ------------ | ----- | ---------------- |
+| `easy_fulfillment` | **0.99** | 5.0          | 2     | 0                |
+| `medium_restock`   | **0.99** | 2.9          | 4     | 0                |
+| `hard_peak_season` | **0.99** | 3.0          | 2     | 0                |
+| **Average**        | **0.99** | —            | —     | —                |
 
 Scores are strictly within `(0.0, 1.0)` exclusive. `0.99` = near-perfect (best achievable), `0.01` = near-zero (worst). Produced by the rule-based grader in `graders.py`. The LLM-backed agent (`AGENT_MODE=llm`) may vary per model.
 
