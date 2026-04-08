@@ -39,45 +39,24 @@
 import json
 import os
 import re
-
 import requests
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
 
-API_BASE_URL = (os.getenv("API_BASE_URL") or "").strip()
+API_BASE_URL = os.environ["API_BASE_URL"]
+API_KEY = os.environ["API_KEY"]
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-API_KEY = (os.getenv("API_KEY") or "").strip()
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
-BENCHMARK_ENV = os.getenv("BENCHMARK_ENV", "logistics_flow")
-AGENT_MODE = os.getenv("AGENT_MODE", "hybrid").lower()
-MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
-LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "10"))
-HYBRID_LLM_CALLS_PER_TASK = int(os.getenv("HYBRID_LLM_CALLS_PER_TASK", "1"))
 
-# If TASK_ID is set, run only that task; otherwise run all 3.
-_env_task_id = (os.getenv("TASK_ID") or "").strip()
-ALL_TASK_IDS = ["easy_fulfillment", "medium_restock", "hard_peak_season"]
-TASK_IDS = [_env_task_id] if _env_task_id else ALL_TASK_IDS
+print(f"[CONFIG] base_url={API_BASE_URL}")
 
-# Validate API key
-if not API_KEY:
-    raise ValueError(
-        "API_KEY environment variable is required"
-    )
-
-# Fix base URL safely
-base_url = API_BASE_URL.rstrip("/") if API_BASE_URL else "https://api.openai.com/v1"
-
-if API_BASE_URL and not base_url.endswith("/v1"):
-    base_url += "/v1"
-
-# Create client
 client = OpenAI(
     api_key=API_KEY,
-    base_url=base_url
+    base_url=API_BASE_URL
 )
+
 
 def parse_json_response(response: requests.Response, context: str):
     if not response.ok:
