@@ -44,7 +44,7 @@ Defined in `task_scenarios.json`:
 - `medium_restock` (medium): account for 2-day lead time before fulfillment
 - `hard_peak_season` (hard): prioritize high-value orders under stock shortage
 
-## Deterministic Graders (0.0-1.0)
+## Deterministic Graders (Strictly 0.0 < score < 1.0)
 
 Run:
 
@@ -52,7 +52,7 @@ Run:
 python grade_tasks.py
 ```
 
-Output includes per-task deterministic score in `[0.0, 1.0]` and average score.
+Output includes per-task deterministic score strictly in `(0.0, 1.0)` and average score.
 
 ## API Endpoints
 
@@ -85,6 +85,14 @@ Required for baseline inference:
 - `API_KEY` (the injected LiteLLM key)
 - `MODEL_NAME`
 
+Optional inference controls:
+
+- `TASK_ID` (run one task instead of all)
+- `AGENT_MODE` (`rule`, `hybrid`, or `llm`; default `hybrid`)
+- `LLM_TIMEOUT_SECONDS` (default `10`)
+- `HYBRID_LLM_CALLS_PER_TASK` (default `1`)
+- `AUTOSTART_LOCAL_ENV` (`true` by default; auto-starts local FastAPI env when `ENV_BASE_URL` is localhost)
+
 3. Start environment server:
 
 ```bash
@@ -97,7 +105,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 python inference.py
 ```
 
-5. Run deterministic graders (0.0-1.0):
+5. Run deterministic graders (strictly inside 0 and 1):
 
 ```bash
 python grade_tasks.py
@@ -157,7 +165,7 @@ Use a Docker Space.
 - `step/reset/state` endpoints respond correctly.
 - Docker image builds with `docker build -t logistics-flow .`.
 - `python inference.py` runs and emits strict `[START]`, `[STEP]`, `[END]` logs.
-- `python grade_tasks.py` returns task scores in `[0.0, 1.0]`.
+- `python grade_tasks.py` returns task scores strictly in `(0.0, 1.0)`.
 
 ## Baseline Scores
 
@@ -171,6 +179,17 @@ Deterministic rule-based agent scores (run `python grade_tasks.py`):
 | **Average**        | **0.99** | —            | —     | —                |
 
 Scores are strictly within `(0.0, 1.0)` exclusive. `0.99` = near-perfect (best achievable), `0.01` = near-zero (worst). Produced by the rule-based grader in `graders.py`. The LLM-backed agent (`AGENT_MODE=llm`) may vary per model.
+
+## Validation Status
+
+Latest local validation checks passed:
+
+- `python -m py_compile app.py environment.py models.py graders.py inference.py`
+- `python grade_tasks.py` (all task scores: `0.99`)
+- `openenv validate`
+- Local API checks: `GET /`, `POST /reset`
+- End-to-end inference run with structured `[START]`, `[STEP]`, `[END]` logs
+- Docker build and container endpoint checks
 
 ## OpenEnv Metadata
 
