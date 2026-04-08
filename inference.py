@@ -20,6 +20,8 @@ ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
 BENCHMARK_ENV = os.getenv("BENCHMARK_ENV", "logistics_flow")
 AGENT_MODE = os.getenv("AGENT_MODE", "hybrid").lower()
 MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
+LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "10"))
+HYBRID_LLM_CALLS_PER_TASK = int(os.getenv("HYBRID_LLM_CALLS_PER_TASK", "1"))
 
 # If TASK_ID is set, run only that task; otherwise run all 3.
 _env_task_id = (os.getenv("TASK_ID") or "").strip()
@@ -146,21 +148,25 @@ Choose exactly one action and return only raw JSON:
 """.strip()
 
 
-def choose_action(obs):
+def choose_action(obs, allow_llm: bool):
     if AGENT_MODE == "rule":
-        return choose_rule_based_action(obs), None
+        return choose_rule_based_action(obs), None, False
+
+    if not allow_llm:
+        return choose_rule_based_action(obs), None, False
 
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": build_prompt(obs)}],
             temperature=0.2,
+            timeout=LLM_TIMEOUT_SECONDS,
         )
-        return parse_action_payload(completion.choices[0].message.content), None
+        return parse_action_payload(completion.choices[0].message.content), None, True
     except Exception as llm_error:
         if AGENT_MODE == "llm":
             raise
-        return choose_rule_based_action(obs), sanitize_error(llm_error)
+        return choose_rule_based_action(obs), sanitize_error(llm_error), True
 
 
 def run_inference(task_id: str):
@@ -170,6 +176,7 @@ def run_inference(task_id: str):
     rewards = []
     success = False
     step_count = 0
+    llm_calls_remaining = max(0, HYBRID_LLM_CALLS_PER_TASK)
 
     try:
         reset_resp = requests.post(
@@ -181,7 +188,13 @@ def run_inference(task_id: str):
         done = bool(obs.get("done", False))
 
         while not done and step_count < MAX_STEPS:
-            action, model_error = choose_action(obs)
+            allow_llm = AGENT_MODE == "llm" or (
+                AGENT_MODE == "hybrid" and llm_calls_remaining > 0
+            )
+            action, model_error, used_llm = choose_action(obs, allow_llm=allow_llm)
+            if AGENT_MODE == "hybrid" and used_llm and llm_calls_remaining > 0:
+                llm_calls_remaining -= 1
+
             reward_value = 0.0
             step_error = model_error
 
@@ -225,4 +238,4 @@ def run_inference(task_id: str):
 
 if __name__ == "__main__":
     for task_id in TASK_IDS:
-        run_inference(task_id)
+        run_inference(task_id)
