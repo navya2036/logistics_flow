@@ -8,6 +8,11 @@ from models import LogisticsAction
 KNOWN_TASKS = ["easy_fulfillment", "medium_restock", "hard_peak_season"]
 
 
+def to_strict_unit_interval(value: float) -> float:
+    # Hackathon requirement: each task score must be strictly between 0 and 1.
+    return min(0.99, max(0.01, float(value)))
+
+
 def choose_rule_based_action(obs: Dict) -> Dict:
     inventory = obs.get("inventory", {})
     orders = obs.get("pending_orders", [])
@@ -138,6 +143,8 @@ def grade_task(task_id: str) -> Dict:
         score = grade_hard(result)
     else:
         raise ValueError(f"Unknown task id: {task_id}")
+
+    score = to_strict_unit_interval(score)
 
     return {
         "task_id": task_id,
