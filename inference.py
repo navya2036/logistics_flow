@@ -10,19 +10,26 @@ load_dotenv()
 
 MODEL_BASE_URL = (os.getenv("MODEL_BASE_URL") or "").strip()
 API_BASE_URL = (os.getenv("API_BASE_URL") or "").strip()
-RESOLVED_MODEL_BASE_URL = MODEL_BASE_URL or API_BASE_URL
+RESOLVED_MODEL_BASE_URL = API_BASE_URL or MODEL_BASE_URL
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-HF_TOKEN = os.getenv("HF_TOKEN")
-API_KEY = OPENAI_API_KEY or HF_TOKEN
+API_KEY = (os.getenv("API_KEY") or "").strip()
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
+HF_TOKEN = (os.getenv("HF_TOKEN") or "").strip()
+RESOLVED_API_KEY = API_KEY or OPENAI_API_KEY or HF_TOKEN
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
 TASK_ID = os.getenv("TASK_ID", "easy_fulfillment")
 BENCHMARK_ENV = os.getenv("BENCHMARK_ENV", "logistics_flow")
 AGENT_MODE = os.getenv("AGENT_MODE", "hybrid").lower()
 MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
 
-if API_KEY is None:
-    raise ValueError("Either OPENAI_API_KEY or HF_TOKEN environment variable is required")
+if API_BASE_URL and not API_KEY:
+    raise ValueError(
+        "API_KEY environment variable is required when API_BASE_URL is set "
+        "(use the injected LiteLLM proxy credentials)"
+    )
+
+if not RESOLVED_API_KEY:
+    raise ValueError("API_KEY (or OPENAI_API_KEY / HF_TOKEN) environment variable is required")
 
 if not RESOLVED_MODEL_BASE_URL:
     raise ValueError(
@@ -30,7 +37,7 @@ if not RESOLVED_MODEL_BASE_URL:
         "(set it to the provided LiteLLM proxy URL)"
     )
 
-client = OpenAI(base_url=RESOLVED_MODEL_BASE_URL, api_key=API_KEY)
+client = OpenAI(base_url=RESOLVED_MODEL_BASE_URL, api_key=RESOLVED_API_KEY)
 
 
 def parse_json_response(response: requests.Response, context: str):

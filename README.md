@@ -75,10 +75,11 @@ Copy `.env.example` to `.env` and fill in tokens.
 
 Required for baseline inference:
 
-- `MODEL_BASE_URL` (preferred, set this to your provided LiteLLM proxy URL)
-- `API_BASE_URL` (legacy fallback if `MODEL_BASE_URL` is not set)
+- `API_BASE_URL` (set this to your provided LiteLLM proxy URL)
+- `API_KEY` (the injected LiteLLM key)
 - `MODEL_NAME`
-- `HF_TOKEN` (or `OPENAI_API_KEY`)
+- `MODEL_BASE_URL` (optional legacy fallback)
+- `HF_TOKEN` or `OPENAI_API_KEY` (optional legacy fallback)
 
 3. Start environment server:
 
@@ -135,11 +136,12 @@ Use a Docker Space.
 2. Select `Docker` as SDK.
 3. Push this repository to the Space.
 4. In Space Settings -> Variables and secrets, set:
-   - `MODEL_BASE_URL` (preferred)
-   - `API_BASE_URL` (legacy fallback)
+   - `API_BASE_URL` (required)
+   - `API_KEY` (required)
    - `MODEL_NAME`
-   - `HF_TOKEN`
-   - (optional) `OPENAI_API_KEY` (same value as `HF_TOKEN`)
+   - `MODEL_BASE_URL` (optional legacy fallback)
+   - `HF_TOKEN` (optional legacy fallback)
+   - `OPENAI_API_KEY` (optional legacy fallback)
 5. Ensure the Space metadata includes the `openenv` tag.
 6. After build is complete, verify:
    - `GET /` returns 200
