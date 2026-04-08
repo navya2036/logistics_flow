@@ -137,11 +137,12 @@ Use a Docker Space.
 3. Push this repository to the Space.
 4. In Space Settings -> Variables and secrets, set:
    - `API_BASE_URL` (required)
-   - `API_KEY` (required)
+   - `API_KEY` (required — injected LiteLLM key)
    - `MODEL_NAME`
    - `MODEL_BASE_URL` (optional legacy fallback)
    - `HF_TOKEN` (optional legacy fallback)
    - `OPENAI_API_KEY` (optional legacy fallback)
+   - `AGENT_MODE` (optional, default: `hybrid`)
 5. Ensure the Space metadata includes the `openenv` tag.
 6. After build is complete, verify:
    - `GET /` returns 200
@@ -156,6 +157,19 @@ Use a Docker Space.
 - Docker image builds with `docker build -t logistics-flow .`.
 - `python inference.py` runs and emits strict `[START]`, `[STEP]`, `[END]` logs.
 - `python grade_tasks.py` returns task scores in `[0.0, 1.0]`.
+
+## Baseline Scores
+
+Deterministic rule-based agent scores (run `python grade_tasks.py`):
+
+| Task | Score | Total Reward | Steps | Remaining Orders |
+|---|---|---|---|---|
+| `easy_fulfillment` | **0.99** | 5.0 | 2 | 0 |
+| `medium_restock` | **0.99** | 2.9 | 4 | 0 |
+| `hard_peak_season` | **0.99** | 3.0 | 2 | 0 |
+| **Average** | **0.99** | — | — | — |
+
+Scores are strictly within `(0.0, 1.0)` exclusive. `0.99` = near-perfect (best achievable), `0.01` = near-zero (worst). Produced by the rule-based grader in `graders.py`. The LLM-backed agent (`AGENT_MODE=llm`) may vary per model.
 
 ## OpenEnv Metadata
 

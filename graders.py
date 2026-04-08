@@ -88,9 +88,9 @@ def run_episode(task_id: str, max_steps: int = 12) -> Dict:
 
 def grade_easy(result: Dict) -> float:
     if not result["done"]:
-        return 0.0
+        return 0.01  # near-zero: episode did not complete
     if result["remaining_orders"] == 0 and result["total_reward"] >= 4.0:
-        return 1.0
+        return 0.99  # near-perfect: all orders fulfilled with full reward
     if result["remaining_orders"] == 0:
         return 0.8
     return 0.2
@@ -106,12 +106,12 @@ def grade_medium(result: Dict) -> float:
     )
 
     if result["remaining_orders"] == 0 and restock_before_fulfill:
-        return 1.0
+        return 0.99  # near-perfect: correct restock-first strategy and all orders done
     if result["remaining_orders"] == 0:
         return 0.6
     if restock_before_fulfill:
         return 0.4
-    return 0.0
+    return 0.01  # near-zero: wrong strategy and orders unfulfilled
 
 
 def grade_hard(result: Dict) -> float:
@@ -119,12 +119,12 @@ def grade_hard(result: Dict) -> float:
     high_priority_done = "ORD201" in fulfilled_ids
 
     if result["remaining_orders"] == 0 and result["total_reward"] >= 3.0:
-        return 1.0
+        return 0.99  # near-perfect: all orders done with sufficient reward
     if high_priority_done and result["total_reward"] >= 2.0:
         return 0.8
     if high_priority_done:
         return 0.5
-    return 0.0
+    return 0.01  # near-zero: high-priority order was not fulfilled
 
 
 def grade_task(task_id: str) -> Dict:

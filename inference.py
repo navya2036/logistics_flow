@@ -17,10 +17,14 @@ OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 HF_TOKEN = (os.getenv("HF_TOKEN") or "").strip()
 RESOLVED_API_KEY = API_KEY or OPENAI_API_KEY or HF_TOKEN
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
-TASK_ID = os.getenv("TASK_ID", "easy_fulfillment")
 BENCHMARK_ENV = os.getenv("BENCHMARK_ENV", "logistics_flow")
 AGENT_MODE = os.getenv("AGENT_MODE", "hybrid").lower()
 MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
+
+# If TASK_ID is set, run only that task; otherwise run all 3.
+_env_task_id = (os.getenv("TASK_ID") or "").strip()
+ALL_TASK_IDS = ["easy_fulfillment", "medium_restock", "hard_peak_season"]
+TASK_IDS = [_env_task_id] if _env_task_id else ALL_TASK_IDS
 
 if API_BASE_URL and not API_KEY:
     raise ValueError(
@@ -159,8 +163,9 @@ def choose_action(obs):
         return choose_rule_based_action(obs), sanitize_error(llm_error)
 
 
-def run_inference():
-    print(f"[START] task={TASK_ID} env={BENCHMARK_ENV} model={MODEL_NAME}")
+def run_inference(task_id: str):
+    """Run one full episode for a given task_id, emitting structured logs."""
+    print(f"[START] task={task_id} env={BENCHMARK_ENV} model={MODEL_NAME}")
 
     rewards = []
     success = False
@@ -169,7 +174,7 @@ def run_inference():
     try:
         reset_resp = requests.post(
             f"{ENV_BASE_URL}/reset",
-            params={"task_id": TASK_ID},
+            params={"task_id": task_id},
             timeout=20,
         )
         obs = parse_json_response(reset_resp, "reset")
@@ -187,7 +192,12 @@ def run_inference():
                     timeout=20,
                 )
                 result = parse_json_response(step_resp, "step")
-                reward_value = float(result.get("reward", 0.0))
+                # Support both typed reward model {"value": ...} and bare float
+                raw_reward = result.get("reward", 0.0)
+                if isinstance(raw_reward, dict):
+                    reward_value = float(raw_reward.get("value", 0.0))
+                else:
+                    reward_value = float(raw_reward)
                 obs = result.get("observation", {})
                 done = bool(result.get("done", False))
             except Exception as step_exc:
@@ -214,4 +224,5 @@ def run_inference():
 
 
 if __name__ == "__main__":
-    run_inference()
+    for task_id in TASK_IDS:
+        run_inference(task_id)

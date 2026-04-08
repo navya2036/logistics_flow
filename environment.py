@@ -61,6 +61,7 @@ class WarehouseEnv:
 
     def step(self, action: LogisticsAction):
         reward = 0.0
+        reward_breakdown: dict = {}
         self.log = ""
         self._apply_arrivals()
 
@@ -69,10 +70,13 @@ class WarehouseEnv:
             if order and self.inventory.get(order.item, 0) >= order.quantity:
                 self.inventory[order.item] -= order.quantity
                 self.orders.remove(order)
-                reward += float(order.priority)
+                fulfill_reward = float(order.priority)
+                reward += fulfill_reward
+                reward_breakdown["fulfill"] = fulfill_reward
                 self.log = f"Fulfilled {order.id}."
             else:
                 reward -= 0.5
+                reward_breakdown["invalid_action"] = -0.5
                 self.log = "Fulfillment failed: insufficient stock or invalid ID."
 
         elif action.action_type == "restock":
@@ -83,6 +87,7 @@ class WarehouseEnv:
                 {"item_id": item_id, "quantity": quantity, "arrival_day": arrival_day}
             )
             reward -= 0.1  # Cost of restocking
+            reward_breakdown["restock_cost"] = -0.1
             self.log = (
                 f"Restock placed for {quantity} {item_id}. "
                 f"Expected arrival day: {arrival_day}."
@@ -95,12 +100,17 @@ class WarehouseEnv:
 
         # Check for expired orders
         expired = [o for o in self.orders if o.due_day < self.current_day]
+        expiry_penalty = 0.0
         for o in expired:
-            reward -= float(o.penalty)
+            expiry_penalty -= float(o.penalty)
             self.orders.remove(o)
             self.log += f" Order {o.id} expired (penalty {o.penalty})."
+        if expiry_penalty != 0.0:
+            reward += expiry_penalty
+            reward_breakdown["expiry_penalty"] = expiry_penalty
 
         if self.current_day > self.max_days or not self.orders:
             self.done = True
 
-        return self._get_obs(), reward, self.done, {}
+        info = {"reward_breakdown": reward_breakdown}
+        return self._get_obs(), reward, self.done, info

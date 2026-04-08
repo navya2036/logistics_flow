@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 class LogisticsAction(BaseModel):
     action_type: Literal["fulfill", "restock", "noop"] = Field(..., description="The action to take")
@@ -30,3 +30,18 @@ class LogisticsObservation(BaseModel):
     incoming_restock: List[IncomingRestock]
     log: str
     done: bool
+
+
+class LogisticsReward(BaseModel):
+    value: float = Field(..., description="Total reward for this step")
+    breakdown: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-component reward breakdown (fulfill, restock_cost, expiry_penalty, invalid_action)",
+    )
+
+
+class StepResult(BaseModel):
+    observation: LogisticsObservation
+    reward: LogisticsReward
+    done: bool
+    info: Dict[str, Any] = Field(default_factory=dict)
