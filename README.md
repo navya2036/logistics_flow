@@ -1,196 +1,284 @@
 # logistics_flow
 
-Intelligent warehouse operations environment built for OpenEnv-style agent evaluation.
+An intelligent warehouse operations environment built for [OpenEnv](https://openenv.dev)-compatible agent evaluation. It simulates real-world inventory management decisions — fulfillment timing, stock restocking, and priority resolution under constraints.
 
-## Motivation
+---
 
-This environment simulates a real operations workflow: inventory management, fulfillment timing, and priority decisions under stock constraints.
+## Project Structure
 
-## Observation Space
+```
+logistics_flow/
+├── app.py               # FastAPI server exposing the environment as a REST API
+├── environment.py       # Core WarehouseEnv simulation logic
+├── models.py            # Typed Pydantic models (action, observation, reward, step result)
+├── graders.py           # Deterministic task graders (score strictly in (0, 1))
+├── grade_tasks.py       # Entry point to run all graders and print JSON results
+├── inference.py         # LLM/rule-based agent that interacts with the environment API
+├── task_scenarios.json  # Scenario definitions for all three tasks
+├── openenv.yaml         # OpenEnv metadata (task list, difficulty, goals)
+├── Dockerfile           # Container config — exposes port 7860
+├── .env.example         # Template for required environment variables
+├── requirements.txt     # Runtime dependencies
+└── requirements-dev.txt # Dev/validation-only dependencies
+```
 
-`LogisticsObservation` fields:
+---
 
-- `inventory`: item-to-stock dictionary
-- `pending_orders`: list of orders with due day, priority, and penalty
-- `current_day`: simulation day index
-- `task_id`: current task scenario
-- `restock_lead_time`: days for restock arrival
-- `incoming_restock`: queued restocks with arrival day
-- `log`: latest system event
-- `done`: episode finished flag
+## How It Works
 
-## Action Space
+### Environment (`environment.py`)
 
-`LogisticsAction` supports:
+`WarehouseEnv` is a discrete-time simulation. At each step:
+1. Pending restock orders that have arrived are applied to inventory.
+2. The agent takes one action (fulfill, restock, or noop).
+3. Time advances by one day.
+4. Expired orders are penalized and removed.
+5. The episode ends when all orders are resolved or `max_days` is reached.
 
-- `{"action_type": "fulfill", "order_id": "..."}`
-- `{"action_type": "restock", "item_id": "...", "quantity": N}`
-- `{"action_type": "noop"}`
+### API Server (`app.py`)
 
-## Reward Signal
+A FastAPI app wraps `WarehouseEnv` and exposes four endpoints:
 
-Trajectory reward is shaped to provide useful learning signal:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/` | Health check — returns `{"status": "ok"}` |
+| `POST` | `/reset?task_id=<id>` | Reset environment to a named scenario |
+| `POST` | `/step` | Submit an action, get observation + reward |
+| `GET`  | `/state` | Get the current observation without stepping |
 
-- Positive reward for successful fulfillment weighted by order priority
-- Small penalty for restocking cost
-- Penalty for invalid fulfillment attempts
-- Order-specific penalty when orders expire
+### Inference Agent (`inference.py`)
 
-## Tasks
+Supports three agent modes (set via `AGENT_MODE` env var):
 
-Defined in `task_scenarios.json`:
+| Mode | Behaviour |
+|------|-----------|
+| `rule` | Pure rule-based: sort orders by urgency, fulfill if stock available, else restock |
+| `llm` | Pure LLM: all decisions via the configured model |
+| `hybrid` | LLM for the first N steps (default 1), then falls back to rule-based |
 
-- `easy_fulfillment` (easy): fulfill simple orders with ample stock
-- `medium_restock` (medium): account for 2-day lead time before fulfillment
-- `hard_peak_season` (hard): prioritize high-value orders under stock shortage
+The agent auto-starts a local uvicorn server if `ENV_BASE_URL` is localhost and the server isn't running.
 
-## Deterministic Graders (Strictly 0.0 < score < 1.0)
+Runs all three tasks by default unless `TASK_ID` is set.
 
-Run:
+---
 
+## Data Models (`models.py`)
+
+All models are typed Pydantic v2 schemas.
+
+### `LogisticsAction`
+```python
+action_type: Literal["fulfill", "restock", "noop"]
+order_id: Optional[str]   # required for "fulfill"
+item_id: Optional[str]    # required for "restock"
+quantity: int             # default 1
+```
+
+### `LogisticsObservation`
+```python
+inventory: Dict[str, int]          # current stock per item
+pending_orders: List[Order]        # active orders not yet fulfilled or expired
+current_day: int                   # simulation time
+task_id: str                       # active scenario name
+restock_lead_time: int             # days until a restock arrives
+incoming_restock: List[IncomingRestock]  # queued arrivals
+log: str                           # last system event message
+done: bool                         # True when episode is finished
+```
+
+### `LogisticsReward`
+```python
+value: float                       # total reward for this step
+breakdown: Dict[str, float]        # per-component breakdown
+```
+
+Reward components:
+- `fulfill`: `+priority` (1–3) on successful fulfillment
+- `restock_cost`: `−0.1` per restock action
+- `invalid_action`: `−0.5` for failed fulfill attempts
+- `expiry_penalty`: `−penalty` (order-defined) when order expires
+
+### `StepResult`
+```python
+observation: LogisticsObservation
+reward: LogisticsReward
+done: bool
+info: Dict[str, Any]
+```
+
+---
+
+## Task Scenarios (`task_scenarios.json`)
+
+Three scenarios of increasing difficulty:
+
+| Task ID | Difficulty | Key Challenge |
+|---------|-----------|---------------|
+| `easy_fulfillment` | Easy | Ample stock, 2 orders, no lead time — straightforward fulfillment |
+| `medium_restock` | Medium | Low initial stock, 2-day restock lead time, must plan ahead |
+| `hard_peak_season` | Hard | Insufficient stock for all orders; must prioritize high-value orders under strict deadlines |
+
+**`easy_fulfillment`** — inventory: `electronics×10, appliances×6`, lead time: 0 days  
+**`medium_restock`** — inventory: `electronics×2, appliances×0`, lead time: 2 days  
+**`hard_peak_season`** — inventory: `electronics×6, appliances×1`, lead time: 2 days, 3 competing orders all due day 2
+
+---
+
+## Graders (`graders.py` / `grade_tasks.py`)
+
+Each task has a deterministic grader. All scores are clamped strictly inside `(0.0, 1.0)` — never exactly 0 or 1 — using `to_strict_unit_interval()`.
+
+### `easy_fulfillment`
+| Condition | Score |
+|-----------|-------|
+| Not done | 0.05 |
+| All orders fulfilled, reward ≥ 4.0 | **0.95** |
+| All orders fulfilled | 0.80 |
+| Otherwise | 0.30 |
+
+### `medium_restock`
+| Condition | Score |
+|-----------|-------|
+| All orders done + restock happened before any fulfill | **0.95** |
+| All orders done (wrong strategy) | 0.70 |
+| Restock first, but orders remain | 0.50 |
+| Wrong strategy + unfulfilled | 0.10 |
+
+### `hard_peak_season`
+| Condition | Score |
+|-----------|-------|
+| All orders done + total reward ≥ 3.0 | **0.95** |
+| High-priority order (ORD201) done + reward ≥ 2.0 | 0.80 |
+| High-priority order done | 0.55 |
+| High-priority order missed | 0.10 |
+
+Run all graders:
 ```bash
 python grade_tasks.py
 ```
 
-Output includes per-task deterministic score strictly in `(0.0, 1.0)` and average score.
+---
 
-## API Endpoints
+## Baseline Scores
 
-- `GET /` (health)
-- `POST /reset?task_id=<id>`
-- `POST /step`
-- `GET /state`
+Rule-based agent results (run `python grade_tasks.py`):
+
+| Task | Score | Total Reward | Steps | Remaining Orders |
+|------|-------|-------------|-------|-----------------|
+| `easy_fulfillment` | **0.95** | 5.0 | 2 | 0 |
+| `medium_restock` | **0.95** | 2.9 | 4 | 0 |
+| `hard_peak_season` | **0.95** | 3.0 | 2 | 0 |
+| **Average** | **0.95** | — | — | — |
+
+> Scores are strictly within `(0.0, 1.0)`. `0.95` = near-perfect. The LLM-backed agent (`AGENT_MODE=llm`) may vary per model.
+
+---
 
 ## Local Setup
 
-1. Install dependencies:
+### 1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Optional (local validation/tooling only):
+### 2. Configure environment variables
+
+Copy `.env.example` to `.env` and fill in values:
 
 ```bash
-pip install -r requirements-dev.txt
+cp .env.example .env
 ```
 
-2. Configure environment variables:
+**Required for inference:**
 
-Copy `.env.example` to `.env` and fill in tokens.
+| Variable | Description |
+|----------|-------------|
+| `API_BASE_URL` | LiteLLM proxy URL injected by the evaluation platform |
+| `API_KEY` | LiteLLM API key injected by the evaluation platform |
+| `MODEL_NAME` | Model identifier (default: `gpt-4.1-mini`) |
 
-Required for baseline inference:
+**Optional inference controls:**
 
-- `API_BASE_URL` (set this to your provided LiteLLM proxy URL)
-- `API_KEY` (the injected LiteLLM key)
-- `MODEL_NAME`
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TASK_ID` | *(none — runs all)* | Run a single task instead of all three |
+| `AGENT_MODE` | `hybrid` | `rule`, `llm`, or `hybrid` |
+| `MAX_STEPS` | `12` | Max steps per episode |
+| `LLM_TIMEOUT_SECONDS` | `10` | LLM call timeout |
+| `HYBRID_LLM_CALLS_PER_TASK` | `1` | LLM calls before falling back to rules |
+| `AUTOSTART_LOCAL_ENV` | `true` | Auto-launch uvicorn if `ENV_BASE_URL` is localhost |
+| `ENV_BASE_URL` | `http://127.0.0.1:8000` | Environment server address |
 
-Optional inference controls:
-
-- `TASK_ID` (run one task instead of all)
-- `AGENT_MODE` (`rule`, `hybrid`, or `llm`; default `hybrid`)
-- `LLM_TIMEOUT_SECONDS` (default `10`)
-- `HYBRID_LLM_CALLS_PER_TASK` (default `1`)
-- `AUTOSTART_LOCAL_ENV` (`true` by default; auto-starts local FastAPI env when `ENV_BASE_URL` is localhost)
-
-3. Start environment server:
+### 3. Start the environment server
 
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-4. Run baseline inference:
+> **Note:** If `AUTOSTART_LOCAL_ENV=true` (the default), `inference.py` will start this automatically.
+
+### 4. Run baseline inference
 
 ```bash
 python inference.py
 ```
 
-5. Run deterministic graders (strictly inside 0 and 1):
+### 5. Grade all tasks
 
 ```bash
 python grade_tasks.py
 ```
 
+---
+
 ## Structured Inference Logs
 
-The inference script emits strict lines only:
+`inference.py` emits strictly structured log lines:
 
-- `[START] ...`
-- `[STEP] ...`
-- `[END] ...`
+```
+[CONFIG] base_url=...
+[START] task=<id> env=logistics_flow model=<model>
+[STEP]  step=N action={...} reward=X.XX done=false error=null
+[END]   success=true steps=N score=0.XXX rewards=X.XX,...
+```
+
+---
 
 ## Docker
 
-Build:
-
+Build image:
 ```bash
 docker build -t logistics-flow .
 ```
 
-Run:
-
+Run container:
 ```bash
 docker run -p 7860:7860 logistics-flow
 ```
 
 Health checks:
-
 ```bash
 curl http://localhost:7860/
 curl -X POST "http://localhost:7860/reset?task_id=easy_fulfillment"
 ```
 
+---
+
 ## Hugging Face Spaces Deployment
 
-Use a Docker Space.
+This project is designed to run as a **Docker Space** on Hugging Face.
 
-1. Create a new Space on Hugging Face.
-2. Select `Docker` as SDK.
-3. Push this repository to the Space.
-4. In Space Settings -> Variables and secrets, set:
-   - `API_BASE_URL` (required)
-   - `API_KEY` (required — injected LiteLLM key)
-   - `MODEL_NAME`
-   - `AGENT_MODE` (optional, default: `hybrid`)
-5. Ensure the Space metadata includes the `openenv` tag.
-6. After build is complete, verify:
-   - `GET /` returns 200
-   - `POST /reset` returns 200
+1. Create a new Space → select **Docker** as SDK.
+2. Push this repository to the Space.
+3. In **Space Settings → Variables and Secrets**, set:
+   - `API_BASE_URL` *(required)*
+   - `API_KEY` *(required)*
+   - `MODEL_NAME` *(optional, default: `gpt-4.1-mini`)*
+   - `AGENT_MODE` *(optional, default: `hybrid`)*
+4. Ensure the Space metadata includes the `openenv` tag.
+5. After build completes, verify:
+   - `GET /` → `{"status": "ok"}`
+   - `POST /reset?task_id=easy_fulfillment` → observation JSON
 
-## Pre-Submission Checklist
-
-- Space deploys and root ping returns 200.
-- `POST /reset` works on deployed URL.
-- `openenv.yaml` includes task metadata.
-- `step/reset/state` endpoints respond correctly.
-- Docker image builds with `docker build -t logistics-flow .`.
-- `python inference.py` runs and emits strict `[START]`, `[STEP]`, `[END]` logs.
-- `python grade_tasks.py` returns task scores strictly in `(0.0, 1.0)`.
-
-## Baseline Scores
-
-Deterministic rule-based agent scores (run `python grade_tasks.py`):
-
-| Task               | Score    | Total Reward | Steps | Remaining Orders |
-| ------------------ | -------- | ------------ | ----- | ---------------- |
-| `easy_fulfillment` | **0.99** | 5.0          | 2     | 0                |
-| `medium_restock`   | **0.99** | 2.9          | 4     | 0                |
-| `hard_peak_season` | **0.99** | 3.0          | 2     | 0                |
-| **Average**        | **0.99** | —            | —     | —                |
-
-Scores are strictly within `(0.0, 1.0)` exclusive. `0.99` = near-perfect (best achievable), `0.01` = near-zero (worst). Produced by the rule-based grader in `graders.py`. The LLM-backed agent (`AGENT_MODE=llm`) may vary per model.
-
-## Validation Status
-
-Latest local validation checks passed:
-
-- `python -m py_compile app.py environment.py models.py graders.py inference.py`
-- `python grade_tasks.py` (all task scores: `0.99`)
-- `openenv validate`
-- Local API checks: `GET /`, `POST /reset`
-- End-to-end inference run with structured `[START]`, `[STEP]`, `[END]` logs
-- Docker build and container endpoint checks
-
-## OpenEnv Metadata
-
-`openenv.yaml` defines task metadata (easy/medium/hard).
+---
